@@ -1,5 +1,7 @@
 ### Tarefa 02
 
+Bruno Freire e Vinicius Teixeira
+
 # Go Language
 
 ### Origens e Influencias
