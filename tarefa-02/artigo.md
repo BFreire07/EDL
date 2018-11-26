@@ -258,6 +258,7 @@ func main() {
 </pre></code>
 
 Output:
+
 <code><pre>
 start
 -
@@ -270,27 +271,104 @@ start
 
 Esse comportamento liga fortemete remetente e recebedor, isso pode ser um comportamento indesejado, algumas vezes. A linguagem do Google apresenta algumas alternativas.
 
+##### Buffered Channels
 
-========================================================================
-.
-.
-.
+Esses "Buffered Channels" são canais que permitem guardar um certo numero de valores que o remetente não bloqueia, até que o Canal esteja cheio.
 
-#### ii. Garbage-Collector
-
-Diferente de C, Go não necessita que o programador libere a memória. Go tem um eficiente e performático garbage collector, fazendo com que o programador não precise se preocupar com o gerenciamento de memória como no código C abaixo.
-
-<pre><code>
-#include<stdio.h>
-#include<stdlib.h>
-
-void aloca()
-{
-
-int *ptr;
-ptr = (int *) malloc(100);
-
-free(ptr);
-
+<code><pre>
+import (
+    "fmt"
+    "time"
+)
+ 
+ 
+func main() {
+    ch := make(chan int, 3)
+ 
+    // Start a goroutine that reads a value from the channel every second and prints it
+    go func(ch chan int) {
+        for {
+            time.Sleep(time.Second)
+            fmt.Printf("Goroutine received: %d\n", <-ch)
+        }
+ 
+    }(ch)
+ 
+    // Start a goroutine that prints a dash every second
+    go func() {
+        for i := 0; i < 5; i++ {
+            time.Sleep(time.Second)
+            fmt.Println("-")
+        }
+    }()
+ 
+    // Push values to the channel as fast as possible
+    for i := 0; i < 5; i++ {
+        ch <- i
+        fmt.Printf("main() pushed: %d\n", i)
+    }
+ 
+    // Sleep five more seconds to let all goroutines finish
+    time.Sleep(5 * time.Second)
 }
 </code></pre>
+
+Após alimentar os 3 valores, a função principal libera um valor e preenche um novo, até preencher todos os valores.
+
+<code><pre>
+main() pushed: 0
+main() pushed: 1
+main() pushed: 2
+-
+Goroutine received: 0
+main() pushed: 3
+-
+Goroutine received: 1
+main() pushed: 4
+-
+Goroutine received: 2
+-
+Goroutine received: 3
+-
+Goroutine received: 4
+</pre></code>
+
+
+##### Select
+
+Select é uma alternativa ao uso de Buffer, pois a não ser que possua memória suficiente, o uso de Buffer pode não resolver totalmente a necessidade do programa. O uso de Select permite que o programa continue mesmo que todos os Canais estejam bloqueados pelas Goroutines. 	
+<code><pre>
+func main() {
+    r := rand.New(rand.NewSource(time.Now().UnixNano()))
+ 
+    sum := func(a int, b int) <-chan int {
+        ch := make(chan int)
+        go func() {
+            // Random time up to one second
+            delay := time.Duration(r.Int()%1000) * time.Millisecond
+            time.Sleep(delay)
+            ch <- a + b
+            close(ch)
+        }()
+        return ch
+    }
+ 
+    // Call sum 4 times with the same parameters
+    ch1 := sum(3, 5)
+    ch2 := sum(3, 5)
+    ch3 := sum(3, 5)
+    ch4 := sum(3, 5)
+ 
+    // wait for the first goroutine to write to its channel
+    select {
+    case result := <-ch1:
+        fmt.Printf("ch1: 3 + 5 = %d", result)
+    case result := <-ch2:
+        fmt.Printf("ch2: 3 + 5 = %d", result)
+    case result := <-ch3:
+        fmt.Printf("ch3: 3 + 5 = %d", result)
+    case result := <-ch4:
+        fmt.Printf("ch4: 3 + 5 = %d", result)
+    }
+}
+</pre></code>
