@@ -76,7 +76,6 @@ O Go tenta combinar a facilidade de uma linguagem de programação interpretada 
 Go traz uma maior simplicidade na implementação, economia de memória (com o uso de Goroutines) e compartilhamento de dados, com segurança, entre Goroutines, durante a execução.
 
 <pre><code>
-
 package main
 
 import (
@@ -122,7 +121,6 @@ func main() {
 Concorrência GoLang</pre></code>
 
 <pre><code>
-
 using System;
 using System.Diagnostics;
 using System.Linq;
@@ -193,7 +191,6 @@ Concorrência C#</code></pre>
 ##### Retorno
 
 <code><pre>
-
 ###### C#
 
 1000000
@@ -203,7 +200,6 @@ Sending 1000000 messages (Task<int>): 1693.675ms
 </code></pre>
 
 <code><pre>
-
 ###### Go
 
 Started, sending 1000000 messages.
@@ -224,7 +220,6 @@ Go utiliza Canais como forma de compartilhar dados entre suas Goroutines, esses 
 Canais possuem, por padrão um estado bloqueante. Isso significa que se enviarmos um valor a um Canal, ele será bloqueado até que o canal seja recebido, assim como será bloqueado quando o Canal for recebido, até que alguém envie um novo valor para o Canal.
 
 <code><pre>
-
 import (
     "fmt"
     "time"
@@ -257,17 +252,6 @@ func main() {
 
 </pre></code>
 
-Output:
-
-<code><pre>
-start
--
--
-5
--
--
--
-</pre></code>
 
 Esse comportamento liga fortemete remetente e recebedor, isso pode ser um comportamento indesejado, algumas vezes. A linguagem do Google apresenta algumas alternativas.
 
@@ -314,25 +298,6 @@ func main() {
 </code></pre>
 
 Após alimentar os 3 valores, a função principal libera um valor e preenche um novo, até preencher todos os valores.
-
-<code><pre>
-main() pushed: 0
-main() pushed: 1
-main() pushed: 2
--
-Goroutine received: 0
-main() pushed: 3
--
-Goroutine received: 1
-main() pushed: 4
--
-Goroutine received: 2
--
-Goroutine received: 3
--
-Goroutine received: 4
-</pre></code>
-
 
 ##### Select
 
