@@ -75,39 +75,206 @@ O Go tenta combinar a facilidade de uma linguagem de programação interpretada 
 
 Go traz uma maior simplicidade na implementação, economia de memória (com o uso de Goroutines) e compartilhamento de dados, com segurança, entre Goroutines, durante a execução.
 
-<pre><code>package main
-import "fmt"
-func main() {
-	go f()
-	go g()
+<pre><code>
+
+package main
+
+import (
+	"flag"
+	"fmt"
+	"time"
+)
+
+func measure(start time.Time, name string) {
+	elapsed := time.Since(start)
+	fmt.Printf("%s took %s", name, elapsed)
+	fmt.Println()
 }
+
+var maxCount = flag.Int("n", 1000000, "how many")
+
+func f(output, input chan int) {
+	output <- 1 + <-input
+}
+
+func test() {
+	fmt.Printf("Started, sending %d messages.", *maxCount)
+	fmt.Println()
+	flag.Parse()
+	defer measure(time.Now(), fmt.Sprintf("Sending %d messages", *maxCount))
+	finalOutput := make(chan int)
+	var left, right chan int = nil, finalOutput
+	for i := 0; i < *maxCount; i++ {
+		left, right = right, make(chan int)
+		go f(left, right)
+	}
+	right <- 0
+	x := <-finalOutput
+	fmt.Println(x)
+}
+
+func main() {
+	test()
+	test()
+}
+
 
 Concorrência GoLang</pre></code>
 
 <pre><code>
+
 using System;
+using System.Diagnostics;
 using System.Linq;
-using System.Threading;
+using System.Threading.Tasks;
+using System.Threading.Tasks.Channels;
 
-namespace ConsoleApllication
+namespace ChannelsTest
 {
-	class Program
-	{
-		static void Main(string[] args)
-		{
-			Thread t1 = new Thread(contThread1);
-			Thread t2 = new Thread(contThread2);
-			
-			t1.Start();
-			t2.Start();
-		}
-	}
+    class Program
+    {
+        public static void Measure(string title, Action<int, bool> test, int count, int warmupCount = 1)
+        {
+            test(warmupCount, true); // Warmup
+            var sw = new Stopwatch();
+            GC.Collect();
+            sw.Start();
+            test(count, false);
+            sw.Stop();
+            Console.WriteLine($"{title}: {sw.Elapsed.TotalMilliseconds:0.000}ms");
+        }
 
+        static async void AddOne(WritableChannel<int> output, ReadableChannel<int> input)
+        {
+            await output.WriteAsync(1 + await input.ReadAsync());
+        }
+
+        static async Task<int> AddOne(Task<int> input)
+        {
+            var result = 1 + await input;
+            await Task.Yield();
+            return result;
+        }
+
+        static void Main(string[] args)
+        {
+            if (!int.TryParse(args.FirstOrDefault(), out var maxCount))
+                maxCount = 1000000;
+            Measure($"Sending {maxCount} messages (channels)", (count, isWarmup) => {
+                var firstChannel = Channel.CreateUnbuffered<int>();
+                var output = firstChannel;
+                for (var i = 0; i < count; i++) {
+                    var input = Channel.CreateUnbuffered<int>();
+                    AddOne(output.Out, input.In);
+                    output = input;
+                }
+                output.Out.WriteAsync(0);
+                if (!isWarmup)
+                    Console.WriteLine(firstChannel.In.ReadAsync().Result);
+            }, maxCount);
+            Measure($"Sending {maxCount} messages (Task<int>)", (count, isWarmup) => {
+                var tcs = new TaskCompletionSource<int>();
+                var firstTask = AddOne(tcs.Task);
+                var output = firstTask;
+                for (var i = 0; i < count; i++) {
+                    var input = AddOne(output);
+                    output = input;
+                }
+                tcs.SetResult(-1);
+                if (!isWarmup)
+                    Console.WriteLine(output.Result);
+            }, maxCount);
+        }
+    }
 }
 
 Concorrência C#</code></pre>
 
-Go traz uma maior simplicidade na implementação, na economia de memória (com o uso de Goroutines) e no compartilhamento de dados entre Goroutines durante a execução, de forma prática e segura.
+##### Retorno
+
+<code><pre>
+
+###### C#
+
+1000000
+Sending 1000000 messages (channels): 3545.006ms
+1000000
+Sending 1000000 messages (Task<int>): 1693.675ms
+</code></pre>
+
+<code><pre>
+
+###### Go
+
+Started, sending 1000000 messages.
+1000000
+Sending 1000000 messages took 3.5034779s
+Started, sending 1000000 messages.
+1000000
+Sending 1000000 messages took 808.9572ms
+</code></pre>
+
+Go traz uma maior simplicidade na implementação, na economia de memória (com o uso de Goroutines) e no compartilhamento de dados entre Goroutines durante a execução, de forma prática e segura. 
+A primeira execução deste teste leva quase exatamente o mesmo tempo em Go e em C#. Já o segundo teste de Go leva basicamente 4.3x. A versão de C# baseada em tarefas é 2.05x mais rápida, mesmo assim ainda é 2x mais lento que a execução em Go.
+A performance de Go é tão melhor na segunda execução, pelo fato de Go não precisar realocar uma pilha, pois as pilhas são reutilizadas.
+Go utiliza Canais como forma de compartilhar dados entre suas Goroutines, esses canais consistem em Queues sincronizadas em memória que podem ser utilizados por Goroutines e Expressões Regulares, com objetivo de se comunicarem entre si.
+
+##### Canais
+
+Canais possuem, por padrão um estado bloqueante. Isso significa que se enviarmos um valor a um Canal, ele será bloqueado até que o canal seja recebido, assim como será bloqueado quando o Canal for recebido, até que alguém envie um novo valor para o Canal.
+
+<code><pre>
+
+import (
+    "fmt"
+    "time"
+)
+ 
+func main() {
+    ch := make(chan int)
+ 
+    // Inicia uma Goroutine que le o valor de um canal e escreve
+    go func(ch chan int) {
+        fmt.Println("start")
+        fmt.Println(<-ch)
+    }(ch)
+ 
+    // Inicia uma Goroutine que escreve um - por segundo
+    go func() {
+        for i := 0; i < 5; i++ {
+            time.Sleep(time.Second)
+            fmt.Println("-")
+        }
+    }()
+ 
+    time.Sleep(2500 * time.Millisecond)
+ 
+    // Enviando um valor para o Canal
+    ch <- 5
+ 
+    time.Sleep(3 * time.Second)
+}
+
+</pre></code>
+
+Output:
+<code><pre>
+start
+-
+-
+5
+-
+-
+-
+</pre></code>
+
+Esse comportamento liga fortemete remetente e recebedor, isso pode ser um comportamento indesejado, algumas vezes. A linguagem do Google apresenta algumas alternativas.
+
+
+========================================================================
+.
+.
+.
 
 #### ii. Garbage-Collector
 
